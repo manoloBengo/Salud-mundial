@@ -1,0 +1,1799 @@
+---
+title: "Expectativa de vida"
+author: "Manolo Bengochea y  Camila Falguera"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    theme: lumen
+    toc: yes
+    toc_float: yes
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+subtitle: Laboratorio de Datos
+---
+
+# Importacion de librerias y datos ---------------------------------------------
+```{r}
+options(warn=-1)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(reshape)
+library(plotly)
+library(ggridges)
+library(dplyr)
+library(gganimate)
+library(tidyverse)
+library(class)
+library(tidyr)
+library(caret)
+library(GGally)
+
+
+datos <- read.csv("exp_de_vida.csv")
+
+colores_continente <- c("firebrick","deepskyblue3","goldenrod1",
+                        "limegreen","black")
+names(colores_continente) <- c("America","Europa","Asia",
+                               "Oceania","Africa")
+                                   
+colores_desarrollo <- c("firebrick","deepskyblue3")
+names(colores_desarrollo) <- c("Developing","Developed")
+```
+
+Renombramos las columnas para que mantengan cierta estructura y limpiamos algunas que contienen datos imposibles o altamente sospechosos
+
+```{r}
+# limpieza de columnas ---------------------------------------------------------
+
+datos <- datos %>% 
+  select(-c(BMI, percentage.expenditure, GDP, Population)) %>% 
+  dplyr::rename("pais" = "Country",
+         "region" = "Region",
+         "ano" = "Year",
+         "nivel" = "Status",
+         "exp_de_vida" = "Life.expectancy",
+         "mortalidad_adultos" = "Adult.Mortality",
+         "muertes_infantes" = "infant.deaths",
+         "alcohol" = "Alcohol",
+         "hepatitis_b" = "Hepatitis.B",
+         "sarampion" = "Measles",
+         "muertes_menores_5" = "under.five.deaths",
+         "polio" = "Polio",
+         "gasto_total" = "Total.expenditure",
+         "difteria" = "Diphtheria",
+         "vih_sida" = "HIV.AIDS",
+         "delgadez_10_a_19" = "thinness..1.19.years",
+         "delgadez_5_a_9" = "thinness.5.9.years",
+         "indice_icr" = "Income.composition.of.resources",
+         "escolaridad" = "Schooling")
+
+datos$muertes_infantes[datos$muertes_infantes > 800] <- NA
+datos$sarampion[datos$sarampion > 900] <- NA
+datos$muertes_menores_5[datos$muertes_menores_5 > 700] <- NA
+datos$indice_icr[datos$indice_icr == 0] <- NA
+datos$escolaridad[datos$indice_icr == 0] <- NA
+
+
+datos$region <- as.character(datos$region)
+datos$region[datos$region == "America del Sur"] <- "America"
+datos$region[datos$region == "America del Norte"] <- "America"
+datos$region[datos$region == "America Central"] <- "America"
+
+
+datos$pais <- as.character(datos$pais)
+datos$pais[datos$pais == "Bolivia (Plurinational State of)"] <- "Bolivia"
+datos$pais[datos$pais == "Venezuela (Bolivarian Republic of)"] <- "Venezuela"
+datos$pais[datos$pais == "United Kingdom of Great Britain and Northern Ireland"] <- "UK"
+datos$pais[datos$pais == "United Republic of Tanzania"] <- "Tanzania"
+datos$pais[datos$pais == "United States of America"] <- "USA"
+datos$pais[datos$pais == "Iran (Islamic Republic of)"] <- "Iran"
+datos$pais[datos$pais == "Russian Federation"] <- "Russia"
+datos$pais[datos$pais == "Viet Nam"] <- "Vietnam"
+datos$pais[datos$pais == "Côte d'Ivoire"] <- "Ivory Coast"
+datos$pais[datos$pais == "Congo"] <- "Republic of Congo"
+datos$pais[datos$pais == "Brunei Darussalam"] <- "Brunei"
+
+```
+
+
+```{r}
+# agregamos datos del GDP ------------------------------------------------------
+
+library(tidyr)
+
+gdp <- read.csv("gdp.csv")
+gdp <- gdp[, c(1,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)]
+
+gdp <- gather(gdp, key = "ano", value = "Value", "X2000","X2001","X2002","X2003","X2004","X2005","X2006","X2007","X2008","X2009","X2010","X2011","X2012","X2013","X2014","X2015")
+gdp$ano[gdp$ano == "X2000"] <- "2000"
+gdp$ano[gdp$ano == "X2001"] <- "2001"
+gdp$ano[gdp$ano == "X2002"] <- "2002"
+gdp$ano[gdp$ano == "X2003"] <- "2003"
+gdp$ano[gdp$ano == "X2004"] <- "2004"
+gdp$ano[gdp$ano == "X2005"] <- "2005"
+gdp$ano[gdp$ano == "X2006"] <- "2006"
+gdp$ano[gdp$ano == "X2007"] <- "2007"
+gdp$ano[gdp$ano == "X2008"] <- "2008"
+gdp$ano[gdp$ano == "X2009"] <- "2009"
+gdp$ano[gdp$ano == "X2010"] <- "2010"
+gdp$ano[gdp$ano == "X2011"] <- "2011"
+gdp$ano[gdp$ano == "X2012"] <- "2012"
+gdp$ano[gdp$ano == "X2013"] <- "2013"
+gdp$ano[gdp$ano == "X2014"] <- "2014"
+gdp$ano[gdp$ano == "X2015"] <- "2015"
+
+gdp$ano <- as.integer(gdp$ano)
+colnames(gdp) <- c("pais","ano","gdp")
+
+gdp$pais[gdp$pais == "United States"] <- "USA"
+gdp$pais[gdp$pais == "Bahamas"] <- "Bahamas"
+gdp$pais[gdp$pais == "Congo, Dem. Rep."] <- "Democratic Republic of the Congo"
+gdp$pais[gdp$pais == "Congo, Rep."] <- "Republic of Congo"
+gdp$pais[gdp$pais == "United Kingdom"] <- "UK"
+gdp$pais[gdp$pais == "Egypt, Arab Rep."] <- "Egypt"
+gdp$pais[gdp$pais == "	Gambia, The"] <- "Gambia"
+
+datos <- left_join(datos, gdp, by=c('pais'='pais', 'ano'='ano'))
+```
+
+Veamos la distribucion de la variable estrella de nuestro proyecto: expectativa de vida
+
+```{r}
+# distribucion de exp. de vida por region -------------------------------------- 
+
+datos_2000 <- datos[is.element(datos$ano,"2000"),]
+datos_2005 <- datos[is.element(datos$ano,"2005"),]
+datos_2010 <- datos[is.element(datos$ano,"2010"),]
+datos_2014 <- datos[is.element(datos$ano,"2014"),]
+datos_2015 <- datos[is.element(datos$ano,"2015"),]
+
+g2000 <- ggplot(datos_2000, aes(x = exp_de_vida, y = region, fill = region)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="grey35") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2000")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_continente)
+
+g2005 <- ggplot(datos_2005, aes(x = exp_de_vida, y = region, fill = region)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="grey35") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2005")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_continente)
+
+g2010 <- ggplot(datos_2010, aes(x = exp_de_vida, y = region, fill = region)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="grey35") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2010")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_continente)
+
+g2015 <- ggplot(datos_2015, aes(x = exp_de_vida, y = region, fill = region)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="grey35") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2015")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_continente)
+
+print(grid.arrange(g2000,g2005,g2010,g2015, nrow = 2, ncol = 2))
+
+```
+
+```{r}
+# distribucion de exp. de vida por nivel de desarrollo-------------------------- 
+
+n2000 <- ggplot(datos_2000, aes(x = exp_de_vida, y = nivel, fill = nivel)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="black") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2000")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_desarrollo)
+
+n2005 <- ggplot(datos_2005, aes(x = exp_de_vida, y = nivel, fill = nivel)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="black") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2005")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_desarrollo)
+
+n2010 <- ggplot(datos_2010, aes(x = exp_de_vida, y = nivel, fill = nivel)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="black") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2010")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_desarrollo)
+
+n2015 <- ggplot(datos_2015, aes(x = exp_de_vida, y = nivel, fill = nivel)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles = 2, color="black") +
+  theme_ridges() + 
+  theme(legend.position = "none") +
+  ggtitle("2015")+
+  xlim(30,100)+
+  ylab("")+
+  xlab("exp. de vida")+
+  scale_fill_manual(values = colores_desarrollo)
+
+grid.arrange(n2000,n2005,n2010,n2015, nrow = 2, ncol = 2)
+
+
+
+
+# distribucion de nivel de desarrollo por continente --------------------------- 
+
+ggplot(datos_2015, aes(x = region, fill = nivel)) +
+  geom_bar(position="fill")+
+  ggtitle("Proporción del nivel de desarrollo por continente
+")+
+  ylab("proporcion")+
+  xlab("region")+
+  scale_fill_manual(values = colores_desarrollo)+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+
+
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+# el tamano de las burbujas depende del pbi (mas grande, mas pbi) --------------
+
+
+r3 <- plot_ly(datos, x = ~`indice_icr`, y = ~`exp_de_vida`, ylab="exp. de vida", xlab="gasto total",
+              frame=~ano,size= ~`gdp`,color=~`region`,colors=colores_continente,mode="markers",marker = list(symbol = 'circle', sizemode = 'diameter', line = list(width = 2, color = '#FFFFFF'), opacity=0.75)) %>% animation_opts(1000, redraw = FALSE)
+
+r3
+
+
+
+
+
+# Gasto total vs exp. de vida  -------------------------------------------------
+
+v1 <- ggplot(datos_2000,aes(gasto_total,exp_de_vida,color = region))+
+  geom_point()+
+  ggtitle("2000")+
+  xlab("Gasto total")+
+  ylab("Expectativa de vida")+
+  xlim(0,18)+
+  ylim(35,90)+
+  scale_color_manual(values= colores_continente)
+  
+v2 <- ggplot(datos_2005,aes(gasto_total,exp_de_vida,color = region))+
+  geom_point()+
+  ggtitle("2005")+
+  xlab("Gasto total")+
+  ylab("Expectativa de vida")+
+  xlim(0,18)+
+  ylim(35,90)+
+  scale_color_manual(values= colores_continente)
+
+v3 <- ggplot(datos_2010,aes(gasto_total,exp_de_vida,color = region))+
+  geom_point()+
+  ggtitle("2010")+
+  xlab("Gasto total")+
+  ylab("Expectativa de vida")+
+  xlim(0,18)+
+  ylim(35,90)+
+  scale_color_manual(values= colores_continente)
+
+v4 <- ggplot(datos_2014,aes(gasto_total,exp_de_vida,color = region))+
+  geom_point()+
+  ggtitle("2014")+
+  xlab("Gasto total")+
+  ylab("Expectativa de vida")+
+  xlim(0,18)+
+  ylim(35,90)+
+  scale_color_manual(values= colores_continente)
+
+
+grid.arrange(v1,v2,v3,v4,nrow=2,ncol=2)
+
+```
+
+Tambien veamoslo en los mapas
+
+```{r, fig.dim = c(10,4)}
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2000, by="pais")
+mapdata2000<-mapdata %>% filter(!is.na(mapdata$exp_de_vida))
+
+mapa2000<-ggplot(mapdata2000, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2000")+
+  scale_fill_gradient(name = "exp. de vida", low = "gold1", high =  "navyblue", limits = c(40,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- full_join(mapdata, datos_2010, by="pais")
+mapdata2005<-mapdata %>% filter(!is.na(mapdata$exp_de_vida))
+
+mapa2005<-ggplot(mapdata2005, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2005")+
+  scale_fill_gradient(name = "exp. de vida", low = "gold1", high =  "navyblue", limits = c(40,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- full_join(mapdata, datos_2010, by="pais")
+mapdata2010<-mapdata %>% filter(!is.na(mapdata$exp_de_vida))
+
+mapa2010<-ggplot(mapdata2010, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2010")+
+  scale_fill_gradient(name = "exp. de vida", low = "gold1", high =  "navyblue", limits = c(40,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- full_join(mapdata, datos_2010, by="pais")
+mapdata2015<-mapdata %>% filter(!is.na(mapdata$exp_de_vida))
+
+mapa2015<-ggplot(mapdata2015, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2015")+
+  scale_fill_gradient(name = "exp. de vida", low = "gold1", high =  "navyblue", limits = c(40,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+
+grid.arrange(mapa2000,mapa2005,mapa2010,mapa2015, ncol=2,nrow=2)
+
+# EUROPA --------
+
+# graficos ------
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2000, by="pais")
+mapdata2000<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Europa"))
+
+mapa2000<-ggplot(mapdata2000, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2000")+
+  scale_fill_gradient(name = "exp. de vida", low = "cadetblue1", high =  "darkblue", limits = c(65,90), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2005, by="pais")
+mapdata2005<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Europa"))
+
+mapa2005<-ggplot(mapdata2005, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2005")+
+  scale_fill_gradient(name = "exp. de vida", low = "cadetblue1", high =  "darkblue", limits = c(65,90), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2010, by="pais")
+mapdata2010<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Europa"))
+
+mapa2010<-ggplot(mapdata2010, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2010")+
+  scale_fill_gradient(name = "exp. de vida", low = "cadetblue1", high =  "darkblue", limits = c(65,90), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2015, by="pais")
+mapdata2015<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Europa") & !is.element(mapdata$pais, "Bahamas"))
+
+mapa2015<-ggplot(mapdata2015, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2015")+
+  scale_fill_gradient(name = "exp. de vida", low = "cadetblue1", high =  "darkblue", limits = c(65,90), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+grid.arrange(mapa2000,mapa2005,mapa2010,mapa2015, nrow=2, ncol=2)
+
+
+
+# ASIA ----------
+
+# graficos ------
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2000, by="pais")
+mapdata2000<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Asia"))
+
+mapa2000<-ggplot(mapdata2000, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2000")+
+  scale_fill_gradient(name = "exp. de vida", low = "khaki1", high =  "saddlebrown", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2005, by="pais")
+mapdata2005<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Asia"))
+
+mapa2005<-ggplot(mapdata2005, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2005")+
+  scale_fill_gradient(name = "exp. de vida", low = "khaki1", high =  "saddlebrown", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2010, by="pais")
+mapdata2010<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Asia"))
+
+mapa2010<-ggplot(mapdata2010, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2010")+
+  scale_fill_gradient(name = "exp. de vida", low = "khaki1", high =  "saddlebrown", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2015, by="pais")
+mapdata2015<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Asia"))
+
+mapa2015<-ggplot(mapdata2015, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2015")+
+  scale_fill_gradient(name = "exp. de vida", low = "khaki1", high =  "saddlebrown", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+grid.arrange(mapa2000,mapa2005,mapa2010,mapa2015, nrow=2, ncol=2)
+
+
+
+
+
+# AFRICA ---------
+
+
+# graficos ------
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2000, by="pais")
+mapdata2000<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Africa"))
+
+mapa2000<-ggplot(mapdata2000, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "white")+
+  ggtitle("Exp. de vida en el 2000")+
+  scale_fill_gradient(name = "exp. de vida", low = "gray80", high =  "black", limits = c(40,80), na.value = "lightyellow")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2005, by="pais")
+mapdata2005<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Africa"))
+
+mapa2005<-ggplot(mapdata2005, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "white")+
+  ggtitle("Exp. de vida en el 2005")+
+  scale_fill_gradient(name = "exp. de vida", low = "gray80", high =  "black", limits = c(40,80), na.value = "lightyellow")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2010, by="pais")
+mapdata2010<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Africa"))
+
+mapa2010<-ggplot(mapdata2010, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "white")+
+  ggtitle("Exp. de vida en el 2010")+
+  scale_fill_gradient(name = "exp. de vida", low = "gray80", high =  "black", limits = c(40,80), na.value = "lightyellow")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2015, by="pais")
+mapdata2015<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "Africa"))
+
+mapa2015<-ggplot(mapdata2015, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "white")+
+  ggtitle("Exp. de vida en el 2015")+
+  scale_fill_gradient(name = "exp. de vida", low = "gray80", high =  "black", limits = c(40,80), na.value = "lightyellow")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+grid.arrange(mapa2000,mapa2005,mapa2010,mapa2015, nrow=2, ncol=2)
+
+
+
+
+
+
+
+# AMERICA -------
+  
+
+
+# graficos ------
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2000, by="pais")
+mapdata2000<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "America"))
+
+mapa2000<-ggplot(mapdata2000, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2000")+
+  scale_fill_gradient(name = "exp. de vida", low = "white", high =  "darkred", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2005, by="pais")
+mapdata2005<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "America"))
+
+mapa2005<-ggplot(mapdata2005, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2005")+
+  scale_fill_gradient(name = "exp. de vida", low = "white", high =  "darkred", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2010, by="pais")
+mapdata2010<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "America"))
+
+mapa2010<-ggplot(mapdata2010, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2010")+
+  scale_fill_gradient(name = "exp. de vida", low = "white", high =  "darkred", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+
+
+mapdata <- map_data("world") ##ggplot2
+colnames(mapdata)[5] <- "pais"
+mapdata <- left_join(mapdata, datos_2015, by="pais")
+mapdata2015<-mapdata %>% filter(!is.na(mapdata$exp_de_vida) & is.element(mapdata$region, "America"))
+
+mapa2015<-ggplot(mapdata2015, aes( x = long, y = lat, group=group)) +
+  geom_polygon(aes(fill = exp_de_vida), color = "grey10")+
+  ggtitle("Exp. de vida en el 2015")+
+  scale_fill_gradient(name = "exp. de vida", low = "white", high =  "darkred", limits = c(60,85), na.value = "grey")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.y=element_blank(),
+        axis.title.x=element_blank(),
+        rect = element_blank())
+
+grid.arrange(mapa2000,mapa2005,mapa2010,mapa2015, nrow=2, ncol=2)
+
+
+
+datos_exp <- datos[!is.na(datos$exp_de_vida),]
+promedios_exp <- datos_exp%>% group_by(region,ano)%>%summarise(mean_val=mean(exp_de_vida))
+
+ggplot(promedios_exp, aes(ano,mean_val,color=region))+
+  geom_line(size=1)+
+  xlab("Ano")+
+  ylab("Promedio de exp. de vida")+
+  scale_color_manual(values = colores_continente)
+
+america <- datos[is.element(datos$region, "America"),]
+paises_america <- unique(america$pais)
+
+for(i in paises_america){
+  if(i=="Haiti"){
+    color_if_haiti <- "firebrick"
+  }else{
+    color_if_haiti <- "black"
+  }
+  
+  
+  data <- america[america$pais== i,]
+  print(ggplot(data, aes(ano,exp_de_vida,color=pais))+
+    geom_line(size=1)+
+    xlab("Ano")+
+    ylab("Promedio de exp. de vida")+
+    ggtitle(i)+
+    geom_vline(xintercept = 2010)+
+    scale_color_manual(values=color_if_haiti)
+  )
+  
+}
+
+
+
+```
+
+```{r}
+
+# Modelo America ------------------------------------------------------------------------------
+
+america <- datos[is.element(datos$region, "America"),]
+america$gasto_total[is.na(america$gasto_total)] <- mean(america$gasto_total[-1])
+america$alcohol[is.na(america$alcohol)] <- mean(america$alcohol[-c(1)])
+america$gdp[is.na(america$gdp)] <- mean(america$gdp[-c(1)])
+
+# correlacion entre variables (america)
+
+ggpairs(america[,c(5,18,19,20)], title="correlogram with ggpairs()") 
+
+
+set.seed(73) # Fijamos semilla para que siempre retorne el mismo resultado
+
+
+ggplot(america,aes(escolaridad,exp_de_vida))+
+  geom_point()+
+  xlab("Escolaridad")+
+  ylab("Expectativa de vida")
+
+ggplot(america,aes(indice_icr,exp_de_vida))+
+  geom_point()+
+  xlab("Indice ICR")+
+  ylab("Expectativa de vida")
+
+
+ggplot(america,aes(gdp,exp_de_vida))+
+  geom_point()+
+  xlab("GDP")+
+  ylab("Expectativa de vida")
+
+
+# Modelo exp. vida y gdp -------------------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$gdp),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$gdp
+
+Eval <- function(mu, alfa) {
+  salida<-mean((Y-mu-alfa*L1)^2)
+  return(t(salida))
+}
+Eval(10,2)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.eval<-Eval(mu,alfa) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa)
+
+ajusA1_1<-lm(Y~L1,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA1_1)
+mean(abs(Y-predichos))
+
+pmaeA1_1<-mean(abs(Y-predichos))/mean(Y)
+pmaeA1_1
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA1_1.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA1_1.cv
+
+
+# Modelo exp. vida y escolaridad------------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$escolaridad),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$escolaridad
+
+Eval <- function(mu, alfa) {
+  salida<-mean((Y-mu-alfa*L1)^2)
+  return(t(salida))
+}
+Eval(10,2)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.eval<-Eval(mu,alfa) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa)
+
+ajusA1_2<-lm(Y~L1,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA1_2)
+mean(abs(Y-predichos))
+
+pmaeA1_2<-mean(abs(Y-predichos))/mean(Y)
+pmaeA1_2
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA1_2.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA1_2.cv
+
+# Modelo exp. vida e icr--------------------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$indice_icr),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$indice_icr
+
+Eval <- function(mu, alfa) {
+  salida<-mean((Y-mu-alfa*L1)^2)
+  return(t(salida))
+}
+Eval(10,2)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.eval<-Eval(mu,alfa) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa)
+
+ajusA1_3<-lm(Y~L1,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA1_3)
+mean(abs(Y-predichos))
+
+pmaeA1_3<-mean(abs(Y-predichos))/mean(Y)
+pmaeA1_3
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA1_3.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA1_3.cv
+
+# Modelo exp. vida, icr y escolaridad ------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$indice_icr) & !is.na(america$escolaridad),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$indice_icr
+L2 <- america_modelo$escolaridad
+
+Eval <- function(mu, alfa, beta) {
+  salida<-mean((Y-mu-alfa*L1-beta*L2)^2)
+  return(t(salida))
+}
+Eval(10,2,1)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+rango.beta<- 25 # rango inicial de beta
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+beta<- 10 # valor inicial de beta
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.beta<-beta
+mejor.eval<-Eval(mu,alfa,beta) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,beta,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  beta<-runif(1,mejor.beta-rango.beta*facred.acu,mejor.beta+rango.beta*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa,beta)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejor.beta<-beta
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,beta,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa,beta)
+
+ajusA2_1<-lm(Y~L1+L2,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA2_1)
+mean(abs(Y-predichos))
+
+pmaeA2_1<-mean(abs(Y-predichos))/mean(Y)
+pmaeA2_1
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1+L2,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA2_1.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA2_1.cv
+
+# Modelo exp. vida, icr y gdp --------------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$indice_icr) & !is.na(america$gdp),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$indice_icr
+L2 <- america_modelo$gdp
+
+Eval <- function(mu, alfa, beta) {
+  salida<-mean((Y-mu-alfa*L1-beta*L2)^2)
+  return(t(salida))
+}
+Eval(10,2,1)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+rango.beta<- 25 # rango inicial de beta
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+beta<- 10 # valor inicial de beta
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.beta<-beta
+mejor.eval<-Eval(mu,alfa,beta) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,beta,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  beta<-runif(1,mejor.beta-rango.beta*facred.acu,mejor.beta+rango.beta*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa,beta)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejor.beta<-beta
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,beta,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa,beta)
+
+ajusA2_2<-lm(Y~L1+L2,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA2_2)
+mean(abs(Y-predichos))
+
+pmaeA2_2<-mean(abs(Y-predichos))/mean(Y)
+pmaeA2_2
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1+L2,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA2_2.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA2_2.cv
+
+
+# Modelo exp. vida, escolaridad y gdp --------------------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$escolaridad) & !is.na(america$gdp),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$escolaridad
+L2 <- america_modelo$gdp
+
+Eval <- function(mu, alfa, beta) {
+  salida<-mean((Y-mu-alfa*L1-beta*L2)^2)
+  return(t(salida))
+}
+Eval(10,2,1)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e5 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.alfa<- 25 # rango inicial de alfa
+rango.beta<- 25 # rango inicial de beta
+# parametros iniciales
+mu<- 20 # valor inicial de mu
+alfa<- 10 # valor inicial de alfa
+beta<- 10 # valor inicial de beta
+# parametros mejores
+mejor.mu<-mu
+mejor.alfa<-alfa
+mejor.beta<-beta
+mejor.eval<-Eval(mu,alfa,beta) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,alfa,beta,1),1,5)
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  alfa<-runif(1,mejor.alfa-rango.alfa*facred.acu,mejor.alfa+rango.alfa*facred.acu)
+  beta<-runif(1,mejor.beta-rango.beta*facred.acu,mejor.beta+rango.beta*facred.acu)
+  # Evaluacion de los nuevos valores
+  valor<-Eval(mu,alfa,beta)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.alfa<-alfa
+    mejor.beta<-beta
+    mejores<-rbind(mejores,c(mejor.eval,mu,alfa,beta,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+c(mu,alfa,beta)
+
+ajusA2_3<-lm(Y~L1+L2,data=america_modelo) # modelo lineal multiple
+
+predichos<-predict(ajusA2_3)
+mean(abs(Y-predichos))
+
+pmaeA2_3<-mean(abs(Y-predichos))/mean(Y)
+pmaeA2_3
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1+L2,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA2_3.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA2_3.cv
+
+
+# Modelo exp. vida, escolaridad, icr y gdp -------------------------------------
+
+america_modelo <- america[!is.na(america$exp_de_vida) & !is.na(america$indice_icr) &
+                            !is.na(america$escolaridad) & !is.na(america$gdp),]
+
+Y <- america_modelo$exp_de_vida
+L1 <- america_modelo$indice_icr
+L2 <- america_modelo$escolaridad
+L3 <- america_modelo$gdp
+
+mu<- 35 # valor inicial de mu
+a<- 11 # valor inicial de a
+b<- 10 # valor inicial de b
+c<- 8
+
+Eval_arg <- function(mu,a,b,c) {
+  salida<-mean((Y-mu-a*L1-b*L2-c*L3)^2)
+  return(t(salida))
+}
+
+Eval_arg(mu,a,b,c)
+
+facred<-0.9999 # factor de reduccion de la ventana
+facred.acu<-1 # factor de reduccion acumulado
+toler<-1/1e3 # umbral de tolerancia
+# rangos
+rango.mu<- 50 # rango inicial de mu
+rango.a<- 25 # rango inicial de alfa
+rango.b<- 25 # rango inicial de beta
+rango.c<- 25
+
+facred.acu<-1
+
+mejor.mu<-mu
+mejor.a<-a
+mejor.b<-b
+mejor.c<-c
+mejor.eval<-Eval_arg(mu,a,b,c) # el mejor valor
+mejores<-matrix(c(mejor.eval,mu,a,b,c,1),1,5)
+
+k<-0 # indice de iteracion
+actu<-0 # indice de actualizacion
+
+while (facred.acu>toler)
+{
+  k<-k+1
+  # Genero nuevos valores aleatorios
+  mu<-runif(1,mejor.mu-rango.mu*facred.acu,mejor.mu+rango.mu*facred.acu)
+  a<-runif(1,mejor.a-rango.a*facred.acu,mejor.a+rango.a*facred.acu)
+  b<-runif(1,mejor.b-rango.b*facred.acu,mejor.b+rango.b*facred.acu)
+  c<-runif(1,mejor.c-rango.c*facred.acu,mejor.c+rango.c*facred.acu)
+  
+  # Evaluacion de los nuevos valores
+  valor<-Eval_arg(mu,a,b,c)
+  if (valor<mejor.eval) # SI encuentro algo mejor -> Actualizacion
+  {
+    actu<-actu+1
+    mejor.eval<-valor
+    mejor.mu<-mu
+    mejor.a<-a
+    mejor.b<-b
+    mejor.c<-c
+    mejores<-rbind(mejores,c(mejor.eval,mu,a,b,c,k))
+  }
+  else # SI NO encuentro algo mejor -> Reduzco rango de busqueda
+  {
+    facred.acu<-facred.acu*facred
+  }
+}
+
+ajusA3<-lm(Y~L1+L2+L3,data=america_modelo) # modelo lineal multiple
+coe<-coef(ajusA3) # coeficientes
+coe
+
+c(mu,a,b,c)
+
+predichos<-predict(ajusA3)
+pmaeA3 <- mean(abs(Y-predichos))/mean(Y)
+pmaeA3
+
+n<-length(Y)
+predichos.oos<-rep(NA,n) # predichos out of sample
+for (i in 1:n)
+{
+  ajus.cv<-lm(Y~L1+L2+L3,data=america_modelo[-i,])
+  predichos.oos[i]<-predict(ajus.cv,newdata=america_modelo[i,])
+}
+mean(abs(Y-predichos.oos))
+
+pmaeA3.cv<-mean(abs(Y-predichos.oos))/mean(Y)
+pmaeA3.cv
+
+# PMAes ingenuos y PMAES CV ----------------------------------------------------
+
+
+PMAESA<-matrix(c(pmaeA1_1,pmaeA1_1.cv,"GDP",
+                 pmaeA1_2,pmaeA1_2.cv,"esc.",
+                 pmaeA1_3,pmaeA1_3.cv,"ICR",
+                 pmaeA2_1,pmaeA2_1.cv,"esc. e ICR",
+                 pmaeA2_2,pmaeA2_2.cv,"GDP e ICR",
+                 pmaeA2_3,pmaeA2_3.cv,"GDP y esc.",
+                 pmaeA3,pmaeA3.cv,"GDP, esc., ICR"
+                 ),7,3,byrow = T)
+
+
+PMAESA <- as.data.frame(PMAESA)
+PMAESA$V2 <- as.numeric(PMAESA$V2)
+PMAESA<- PMAESA %>% arrange(desc(V2))
+
+barplot(height = PMAESA$V2, names = PMAESA$V3, las=2, ylim=c(0,0.07), col="firebrick4", border = "firebrick4", cex.names=0.7, main="PMAEs segun el modelo utilizado (ingenuo)")
+
+
+
+PMAESA <- as.data.frame(PMAESA)
+PMAESA$V1 <- as.numeric(PMAESA$V1)
+PMAESA<- PMAESA %>% arrange(desc(V1))
+
+barplot(height = PMAESA$V1, names = PMAESA$V3, las=2, ylim=c(0,0.07), col="firebrick", border = "firebrick", cex.names=0.7, main="PMAEs segun el modelo utilizado (CV)")
+
+
+
+
+```
+
+
+```{r}
+# knn de exp. de vida vs gdp, predice nivel de desarrollo ----------------------
+
+# knn de exp. de vida vs gdp, predice nivel de desarrollo ----------------------
+
+ggplot(datos_2010, aes(nivel, exp_de_vida, fill=nivel))+
+  geom_boxplot()+
+  ylab("exp. de vida")+
+  scale_fill_manual(values = colores_desarrollo)
+  
+ggplot(datos_2010, aes(nivel, gdp, fill=nivel))+
+  geom_boxplot()+
+  scale_fill_manual(values = colores_desarrollo)
+
+
+
+y2000<-ggplot(datos_2000, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2000")+
+  xlab("exp. de vida")+
+  xlim(35,90)+
+  scale_color_manual(values = colores_desarrollo)
+
+y2005<-ggplot(datos_2005, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2005")+
+  xlab("exp. de vida")+
+  xlim(35,90)+
+  scale_color_manual(values = colores_desarrollo)
+
+y2010<-ggplot(datos_2010, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2010")+
+  xlab("exp. de vida")+
+  xlim(35,90)+
+  scale_color_manual(values = colores_desarrollo)
+
+y2015<-ggplot(datos_2015, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2015")+
+  xlab("exp. de vida")+
+  xlim(35,90)+
+  scale_color_manual(values = colores_desarrollo)
+
+grid.arrange(y2000,y2005,y2010,y2015, ncol=2, nrow=2)
+
+
+
+datos_knn <- datos[!is.na(datos$exp_de_vida) & !is.na(datos$gdp), c(3,4,5,20)]
+
+datos_knn["exp_de_vida"] <- (datos_knn$exp_de_vida - mean(datos_knn$exp_de_vida))/ sd(datos_knn$exp_de_vida)
+datos_knn["gdp"] <- (datos_knn$gdp - mean(datos_knn$gdp))/ sd(datos_knn$gdp)
+
+
+datos_knn_2000 <- datos_knn[is.element(datos_knn$ano,"2000"),]
+datos_knn_2005 <- datos_knn[is.element(datos_knn$ano,"2005"),]
+datos_knn_2010 <- datos_knn[is.element(datos_knn$ano,"2010"),]
+datos_knn_2015 <- datos_knn[is.element(datos_knn$ano,"2015"),]
+
+
+z2000<-ggplot(datos_knn_2000, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2000")+
+  xlim(-3.2,2.2)+
+  ylim(-1.5,6.5)+
+  xlab("exp. de vida")+
+  scale_color_manual(values = colores_desarrollo)
+
+z2005<-ggplot(datos_knn_2005, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2005")+
+  xlim(-3.2,2.2)+
+  ylim(-1.5,6.5)+
+  xlab("exp. de vida")+
+  scale_color_manual(values = colores_desarrollo)
+
+z2010<-ggplot(datos_knn_2010, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2010")+
+  xlim(-3.2,2.2)+
+  ylim(-1.5,6.5)+
+  xlab("exp. de vida")+
+  scale_color_manual(values = colores_desarrollo)
+
+z2015<-ggplot(datos_knn_2015, aes(exp_de_vida, gdp, color=nivel))+
+  geom_point()+
+  ggtitle("Exp. de vida vs GDP, año 2015")+
+  xlim(-3.2,2.2)+
+  ylim(-1.5,6.5)+
+  xlab("exp. de vida")+
+  scale_color_manual(values = colores_desarrollo)
+
+grid.arrange(z2000,z2005,z2010,z2015, ncol=2, nrow=2)
+
+
+train =  datos_knn_2000[, -c(1,2)] # saco la columna con la etiqueta
+test =  datos_knn_2000[, -c(1,2)]
+
+labels_train = datos_knn_2000[,2] # guardo las etiquetas
+clasif_datos <- knn(train = train, test = test, cl = labels_train, k = 3)
+summary(clasif_datos)
+
+labels_test = datos_knn_2000[,2]
+confusionMatrix(as.factor(clasif_datos), as.factor(labels_test))
+
+
+
+# knn original -----------------------------------------------------------------
+
+#set.seed(73)
+
+datos_knn_1 <- datos_knn
+
+
+table(datos_knn_1$nivel)
+barplot(table(datos_knn_1$nivel)/2559, col=c("deepskyblue3","firebrick"))
+
+
+Nrep = 20
+Ntest = 30
+max_val = 20
+valores = 1:max_val
+
+resultados_crossval_train = matrix(NA, length(valores), 51)
+resultados_crossval_test = matrix(NA, length(valores), 51)
+
+datos_knn_1 <- datos_knn_1[,-1]
+
+
+for(k in 1:max_val){
+  
+  for(i in 1:50){
+    
+    indices = sample(seq(1, nrow(datos_knn_1)), 0.2*nrow(datos_knn_1))
+    test = datos_knn_1[indices, -1]
+    train = datos_knn_1[-indices, -1]
+    test_labels = datos_knn_1[indices, 1]
+    train_labels = datos_knn_1[-indices, 1]
+    
+    clasificador_datos_k_train <- knn(train = train, test = train, cl = train_labels, k = k)
+    clasificador_datos_k_test <- knn(train = train, test = test, cl = train_labels, k = k)
+    
+    exactitud_train = confusionMatrix(as.factor(clasificador_datos_k_train), as.factor(train_labels))$overall[[1]]
+    exactitud_test = confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$overall[[1]]
+    
+    resultados_crossval_train[k, i] = exactitud_train
+    resultados_crossval_test[k, i] = exactitud_test
+  }
+  
+  resultados_crossval_train[k,51] <- mean(resultados_crossval_train[k,1:50])
+  resultados_crossval_test[k,51] <- mean(resultados_crossval_test[k,1:50])
+  
+  
+  if(k > 1){
+    if(resultados_crossval_test[k, 51] > mayor){
+      mayor <- resultados_crossval_test[k, 51] 
+      matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+      titulo <- k
+    }
+  }else{
+    matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+    titulo <- k
+    mayor <- resultados_crossval_test[k, 51] 
+  }
+  
+  
+}
+
+
+exact_train = resultados_crossval_train[,51]
+exact_test = resultados_crossval_test[,51]
+
+plot(valores, exact_train, col = 'darkblue', pch = 19, ylim = c(0.85,1), cex = 0.5, xlab = 'Valor de k', ylab = 'Exactitud', main = 'Exactitud en función del k')
+lines(valores, exact_train, col = 'darkblue')
+points(valores, exact_test, col = 'darkorange', pch = 19, cex = 0.5)
+lines(valores, exact_test, col = 'darkorange')
+legend('topright', legend = c('train', 'test'), col = c('darkblue', 'darkorange'), pch = 19)
+abline(h = 0.9, col = "red")
+
+
+
+plotTable <- matriz_confusion %>%
+  mutate(goodbad = ifelse(matriz_confusion$Prediction == matriz_confusion$Reference, "good", "bad")) %>%
+  group_by(Reference) %>%
+  mutate(prop = Freq/sum(Freq))
+
+#    fill alpha relative to sensitivity/specificity by proportional
+# outcomes within reference groups (see dplyr code above as well as
+# original confusion matrix for comparison)
+
+ggplot(data = plotTable, mapping = aes(x = Reference, y = Prediction, fill = goodbad, alpha = prop)) +
+  geom_tile() +
+  ggtitle(as.character(titulo)) +
+  geom_text(aes(label = Freq), vjust = .5, fontface  = "bold", alpha = 1) +
+  scale_fill_manual(values = c(good = "green", bad = "red")) +
+  theme_bw() +
+  xlim(rev(levels(matriz_confusion$Reference)))
+
+
+
+# Knn con menos datos de developing --------------------------------------------
+
+datos_knn_2 <- datos_knn
+
+table(datos_knn_2$nivel)
+developed <- datos_knn_2[is.element(datos_knn_2$nivel,"Developed"),]
+developing_0 <- datos_knn_2[is.element(datos_knn_2$nivel,"Developing"),]
+developing <- sample_n(developing_0, 1000)
+datos_knn_2 = rbind(developed,developing)
+barplot(table(datos_knn_2$nivel)/1480, col=c("deepskyblue3","firebrick"))
+
+
+Nrep = 20
+Ntest = 30
+max_val = 20
+valores = 1:max_val
+
+
+resultados_crossval_train = matrix(NA, length(valores), 51)
+resultados_crossval_test = matrix(NA, length(valores), 51)
+
+datos_knn_2 <- datos_knn_2[,-1]
+
+
+for(k in 1:max_val){
+  
+  for(i in 1:50){
+    
+    indices = sample(seq(1, nrow(datos_knn_2)), 0.2*nrow(datos_knn_2))
+    test = datos_knn_2[indices, -1]
+    train = datos_knn_2[-indices, -1]
+    test_labels = datos_knn_2[indices, 1]
+    train_labels = datos_knn_2[-indices, 1]
+    
+    clasificador_datos_k_train <- knn(train = train, test = train, cl = train_labels, k = k)
+    clasificador_datos_k_test <- knn(train = train, test = test, cl = train_labels, k = k)
+    
+    exactitud_train = confusionMatrix(as.factor(clasificador_datos_k_train), as.factor(train_labels))$overall[[1]]
+    exactitud_test = confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$overall[[1]]
+    
+    resultados_crossval_train[k, i] = exactitud_train
+    resultados_crossval_test[k, i] = exactitud_test
+  }
+  
+  resultados_crossval_train[k,51] <- mean(resultados_crossval_train[k,1:50])
+  resultados_crossval_test[k,51] <- mean(resultados_crossval_test[k,1:50])
+  
+  
+  if(k > 1){
+    if(resultados_crossval_test[k, 51] > mayor){
+      mayor <- resultados_crossval_test[k, 51] 
+      matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+      titulo <- k
+    }
+  }else{
+    matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+    titulo <- k
+    mayor <- resultados_crossval_test[k, 51] 
+  }
+  
+  
+}
+
+
+exact_train = resultados_crossval_train[,51]
+exact_test = resultados_crossval_test[,51]
+
+plot(valores, exact_train, col = 'darkblue', pch = 19, ylim = c(0.85,1), cex = 0.5, xlab = 'Valor de k', ylab = 'Exactitud', main = 'Exactitud en función del k')
+lines(valores, exact_train, col = 'darkblue')
+points(valores, exact_test, col = 'darkorange', pch = 19, cex = 0.5)
+lines(valores, exact_test, col = 'darkorange')
+legend('topright', legend = c('train', 'test'), col = c('darkblue', 'darkorange'), pch = 19)
+abline(h = 0.9, col = "red")
+
+
+
+plotTable <- matriz_confusion %>%
+  mutate(goodbad = ifelse(matriz_confusion$Prediction == matriz_confusion$Reference, "good", "bad")) %>%
+  group_by(Reference) %>%
+  mutate(prop = Freq/sum(Freq))
+
+#    fill alpha relative to sensitivity/specificity by proportional
+# outcomes within reference groups (see dplyr code above as well as
+# original confusion matrix for comparison)
+
+ggplot(data = plotTable, mapping = aes(x = Reference, y = Prediction, fill = goodbad, alpha = prop)) +
+  geom_tile() +
+  ggtitle(as.character(titulo)) +
+  geom_text(aes(label = Freq), vjust = .5, fontface  = "bold", alpha = 1) +
+  scale_fill_manual(values = c(good = "green", bad = "red")) +
+  theme_bw() +
+  xlim(rev(levels(matriz_confusion$Reference)))
+
+
+
+# Knn con MUCHOS menos datos de developing -------------------------------------
+
+datos_knn_3 <- datos_knn
+
+table(datos_knn_3$nivel)
+developed <- datos_knn_3[is.element(datos_knn_3$nivel,"Developed"),]
+developing_0 <- datos_knn_3[is.element(datos_knn_3$nivel,"Developing"),]
+developing <- sample_n(developing_0, 480)
+datos_knn_3 = rbind(developed,developing)
+barplot(table((datos_knn_3$nivel))/960, col=c("deepskyblue3","firebrick"))
+
+
+Nrep = 20
+Ntest = 30
+max_val = 20
+valores = 1:max_val
+
+resultados_crossval_train = matrix(NA, length(valores), 51)
+resultados_crossval_test = matrix(NA, length(valores), 51)
+
+datos_knn_3 <- datos_knn_3[,-1]
+
+
+for(k in 1:max_val){
+  
+  for(i in 1:50){
+    
+    indices = sample(seq(1, nrow(datos_knn_3)), 0.2*nrow(datos_knn_3))
+    test = datos_knn_3[indices, -1]
+    train = datos_knn_3[-indices, -1]
+    test_labels = datos_knn_3[indices, 1]
+    train_labels = datos_knn_3[-indices, 1]
+    
+    clasificador_datos_k_train <- knn(train = train, test = train, cl = train_labels, k = k)
+    clasificador_datos_k_test <- knn(train = train, test = test, cl = train_labels, k = k)
+    
+    exactitud_train = confusionMatrix(as.factor(clasificador_datos_k_train), as.factor(train_labels))$overall[[1]]
+    exactitud_test = confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$overall[[1]]
+    
+    resultados_crossval_train[k, i] = exactitud_train
+    resultados_crossval_test[k, i] = exactitud_test
+  }
+  
+  resultados_crossval_train[k,51] <- mean(resultados_crossval_train[k,1:50])
+  resultados_crossval_test[k,51] <- mean(resultados_crossval_test[k,1:50])
+  
+  
+  if(k > 1){
+    if(resultados_crossval_test[k, 51] > mayor){
+      mayor <- resultados_crossval_test[k, 51] 
+      matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+      titulo <- k
+      test$predichos <- clasificador_datos_k_test
+      graf <- ggplot(test, aes(exp_de_vida, gdp, color = predichos))+
+        geom_point()+
+        xlab("exp. de vida")+
+        scale_color_manual(values = colores_desarrollo)
+      
+      test2<-test
+      test2$nivel <- test_labels
+      graf2 <- ggplot(test2, aes(exp_de_vida, gdp, color = nivel))+
+        geom_point()+
+        xlab("exp. de vida")+
+        scale_color_manual(values = colores_desarrollo)
+  
+        
+        
+    }
+  }else{
+    matriz_confusion = data.frame(confusionMatrix(as.factor(clasificador_datos_k_test), as.factor(test_labels))$table)
+    titulo <- k
+    mayor <- resultados_crossval_test[k, 51] 
+    test$predichos <- clasificador_datos_k_test
+    graf <- ggplot(test, aes(exp_de_vida, gdp, color = predichos))+
+      geom_point()+
+      xlab("exp. de vida")+
+      scale_color_manual(values = colores_desarrollo)
+    
+    test2<-test
+    test2$nivel <- test_labels
+    graf2 <- ggplot(test2, aes(exp_de_vida, gdp, color = nivel))+
+      geom_point()+
+      xlab("exp. de vida")+
+      scale_color_manual(values = colores_desarrollo)
+  }
+  
+  
+}
+
+
+exact_train = resultados_crossval_train[,51]
+exact_test = resultados_crossval_test[,51]
+
+plot(valores, exact_train, col = 'darkblue', pch = 19, ylim = c(0.85,1), cex = 0.5, xlab = 'Valor de k', ylab = 'Exactitud', main = 'Exactitud en función del k')
+lines(valores, exact_train, col = 'darkblue')
+points(valores, exact_test, col = 'darkorange', pch = 19, cex = 0.5)
+lines(valores, exact_test, col = 'darkorange')
+legend('topright', legend = c('train', 'test'), col = c('darkblue', 'darkorange'), pch = 19)
+abline(h = 0.9, col = "red")
+
+plotTable <- matriz_confusion %>%
+  mutate(goodbad = ifelse(matriz_confusion$Prediction == matriz_confusion$Reference, "good", "bad")) %>%
+  group_by(Reference) %>%
+  mutate(prop = Freq/sum(Freq))
+
+#    fill alpha relative to sensitivity/specificity by proportional
+# outcomes within reference groups (see dplyr code above as well as
+# original confusion matrix for comparison)
+
+ggplot(data = plotTable, mapping = aes(x = Reference, y = Prediction, fill = goodbad, alpha = prop)) +
+  geom_tile() +
+  ggtitle(as.character(titulo)) +
+  geom_text(aes(label = Freq), vjust = .5, fontface  = "bold", alpha = 1) +
+  scale_fill_manual(values = c(good = "green", bad = "red")) +
+  theme_bw() +
+  xlim(rev(levels(matriz_confusion$Reference)))
+
+
+
+
+grid.arrange(graf,graf2,nrow=1,ncol=2)
+
+
+
+```
+
+
+
